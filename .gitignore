@@ -1,0 +1,30 @@
+*.dll
+*.exe
+
+terraform.tfplan
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+
+bin/
+.vagrant/
+*.backup
+./*.tfstate
+
+# Local .terraform directories
+**/.terraform/*
+
+*.log
+*.bak
+*~
+.*.swp
+.idea
+*.iml
+*.test
+*.iml
+*.zip
+
+website/vendor
+
+
