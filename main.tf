@@ -7,12 +7,12 @@
 # AWS profile configuration required
 # Instalation Terraform CLI required
 # S3 for backend required
-# $ terraform init / plan / apply
+# $ terraform init / plan / apply / destroy
 
 
 #-------------------------
 # Provider
-#-------------------------
+#--------------------------
 provider "aws" {
   profile = "default"
   region  = var.region
