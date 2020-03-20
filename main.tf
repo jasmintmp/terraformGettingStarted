@@ -60,12 +60,12 @@ resource "aws_s3_bucket_object" "file_upload" {
   etag   = filemd5("${path.module}/upload_me.txt")
 }
 
-#-------------------------
-# VPC
-#-------------------------
+# -------------------------
+# VPC - CREATE
+# -------------------------
 # Your VPC comes with a default Security Group, NACL, Route Table unles it'll be provided.
 # Creating a VPC with an Internet Gateway
-#-------------------------
+# -------------------------
 resource "aws_vpc" "akrawiec_vpc" {
   cidr_block       = "10.0.0.0/16"
   instance_tenancy = "default"
@@ -76,13 +76,28 @@ resource "aws_vpc" "akrawiec_vpc" {
   }
 }
 
+
+# variable "vpc_id" {
+#   type        = string
+#   default =  "vpc-01f076153a041e63b"
+
+# }
+
+# data "aws_vpc" "default" {
+#    id = "${var.vpc_id}"
+#   }
+
+
+
 #------------------------- 
-# Creating a Subnet 
+# Creating a Public Subnet for EC2
 #-------------------------
 #  Subnet_1 251 IP 2a
 #-------------------------
 resource "aws_subnet" "akrawiec_subnet_1" {
   vpc_id     = aws_vpc.akrawiec_vpc.id
+  
+  //vpc_id     = aws_vpc.akrawiec_vpc.id
   cidr_block = "10.0.0.0/24"
   map_public_ip_on_launch = true
   availability_zone = "us-west-2a"
@@ -167,7 +182,7 @@ resource "aws_route" "akrawiec_VPC_internet_access" {
 # -----------------------------------------
 
 # -------------- Security Group-------------
-# 3 Crate Security Group - subnet's firewall 
+# 3 Crate Security Group - instance firewall 
 # -----------------------------------------
 resource "aws_security_group" "akrawiec_sg_pub"{
   name = "akrawiec_sg_pub"
@@ -211,7 +226,7 @@ resource "aws_key_pair" "akrawiec_public_key" {
 }
 
 #-------------------------
-# EC2
+#  EC2
 #-------------------------	
 # Create EC2 instance with AMI Image (public image)
 # Amazon Machine Images (AMI) EC2
@@ -228,9 +243,8 @@ resource "aws_instance" "EC2_instance_1" {
   }
 
   #---------- Script fired on launching EC2--- not working
-    user_data = "${file("install_apache.sh")}"  
+    user_data = file("install_apache.sh")  
   }
-
 
 # -------------- Variables -------------------
 # to comunicate with module (including this root module)
@@ -277,3 +291,123 @@ module "call_server" {
 output "server_out" {
   value = "Module output: ${module.call_server.server_outputs}"
 }
+
+
+# --------------------------------------------------------------------------------------------
+# RDS
+# --------------------------------------------------------------------------------------------
+
+#------------------------- 
+# 1 Creating a Private Subnet 
+#-------------------------
+#  Subnet_3 2a
+#-------------------------
+resource "aws_subnet" "akrawiec_subnet_prv_2a" {
+  vpc_id     = aws_vpc.akrawiec_vpc.id
+  
+  //vpc_id     = aws_vpc.akrawiec_vpc.id
+  cidr_block = "10.0.2.0/24"
+
+  availability_zone = "us-west-2a"
+  tags = {
+    Name = "akrawiec_subnet_prv_2a"
+     Owner = "akrawiec"
+  }
+}
+#-------------------------
+#  Subnet_4 2c
+#-------------------------
+resource "aws_subnet" "akrawiec_subnet_prv_2c" {
+  vpc_id     = aws_vpc.akrawiec_vpc.id
+  cidr_block = "10.0.3.0/24"
+  availability_zone = "us-west-2c"
+
+  tags = {
+    Name = "akrawiec_subnet_prv_2c"
+     Owner = "akrawiec"
+  }
+}
+
+# -------------- DB Subnet  Group-------------
+# 2 Crate DB Subnets Group
+# -----------------------------------------
+resource "aws_db_subnet_group" "akrawiec_subnets_group" {
+  name       = "akrawiec_subnets_group"
+  subnet_ids = [aws_subnet.akrawiec_subnet_prv_2a.id, aws_subnet.akrawiec_subnet_prv_2c.id]
+
+  tags = {
+    Name = "akrawiec DB subnet group"
+  }
+}
+
+# -------------- RDS Security Group -----------
+# 3 Crate PRIVATE Security Group 
+# RDS with Source EC2(SecGroup) -> RDS allowed
+# -----------------------------------------
+resource "aws_security_group" "akrawiec_sg_prv"{
+  name = "akrawiec_sg_prv"
+  description = "Allow RDS"
+  vpc_id = aws_vpc.akrawiec_vpc.id
+
+  # allow ingress of port 1433
+  ingress {
+    description = "Source EC2 sg to RDS"
+    from_port   = 1433
+    to_port     = 1433
+    protocol    = "tcp"
+    security_groups = [aws_security_group.akrawiec_sg_pub.id]
+  }
+
+  # allow ingress ssh
+  ingress {
+        from_port = 22
+        to_port = 22
+        protocol = "tcp"
+        cidr_blocks = ["0.0.0.0/0"]
+  }
+ # allow egress of all ports
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  #  tags {
+  #       Name = "DBServerSG"
+  #       Terraform = true
+  #   }
+
+}
+
+# module "mssql_security_group" {
+#   source = "terraform-aws-modules/security-group/aws//modules/mssql"
+
+#   # omitted...
+# }
+
+# -------------- RDS ----------- -----------
+# 4 Crate Instance DB Server  
+# RDS with Source EC2(SecGroup) -> RDS allowed
+# -----------------------------------------
+resource "aws_db_instance" "akrawiec_RDS_1" {
+  allocated_storage    = 20
+  storage_type         = "gp2"
+  engine               = "sqlserver-ex"
+  engine_version       = "14.00.3223.3.v1"
+  instance_class       = "db.t2.micro"
+  name                 = ""
+  username             = "admin"
+  password             = "password"
+  port                 = "1433"
+  vpc_security_group_ids = [aws_security_group.akrawiec_sg_prv.id]
+  db_subnet_group_name = aws_db_subnet_group.akrawiec_subnets_group.id
+
+  tags = {
+    Name = "akrawiec_RDS_1"
+    Owner = "akrawiec"
+  }
+
+}
+
+
