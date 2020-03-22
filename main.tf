@@ -402,7 +402,7 @@ resource "aws_db_instance" "akrawiec_RDS_1" {
   port                 = "1433"
   vpc_security_group_ids = [aws_security_group.akrawiec_sg_prv.id]
   db_subnet_group_name = aws_db_subnet_group.akrawiec_subnets_group.id
-
+  skip_final_snapshot = true
   tags = {
     Name = "akrawiec_RDS_1"
     Owner = "akrawiec"
